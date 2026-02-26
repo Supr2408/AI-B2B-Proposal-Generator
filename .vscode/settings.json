@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^cd \"d:\\\\AI B2B Proposal Generator\\\\module2-b2b-proposal\" ; npm install$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}
