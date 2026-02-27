@@ -24,7 +24,10 @@ async function generate(req, res) {
       return res.status(400).json({
         ok: false,
         data: null,
-        error: `Validation failed: ${issues}`,
+        error: {
+          message: `Validation failed: ${issues}`,
+          code: "INVALID_REQUEST",
+        },
       });
     }
 
@@ -45,7 +48,10 @@ async function generate(req, res) {
       return res.status(422).json({
         ok: false,
         data: null,
-        error: err.message,
+        error: {
+          message: err.message,
+          code: "VALIDATION_ERROR",
+        },
       });
     }
 
@@ -53,7 +59,10 @@ async function generate(req, res) {
     return res.status(500).json({
       ok: false,
       data: null,
-      error: err.message,
+      error: {
+        message: err.message,
+        code: "INTERNAL_ERROR",
+      },
     });
   }
 }

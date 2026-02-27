@@ -35,7 +35,9 @@ class ValidationError extends Error {
  *  12. Return structured response
  */
 
-async function generateProposal({ client_name, budget_limit, category_focus, sustainability_priority }) {
+async function generateProposal({ client_name, budget_limit, preferences }) {
+  const category_focus = preferences?.category_focus || [];
+  const sustainability_priority = preferences?.sustainability_priority || "";
   // ── 1. Fetch all products from DB ──────────────────────────────
   const allProducts = await Product.find({}).lean();
   if (allProducts.length === 0) {
@@ -193,18 +195,26 @@ function parseAndValidate(rawContent, productMap, budget_limit) {
       );
     }
 
-    // 8d. Server-side computation of total_cost (LLMs cannot do arithmetic reliably)
-    //     Same pattern as server-side impact computation — the server is the
-    //     source of truth for all derived numeric fields.
-    item.total_cost = Math.round(item.quantity * dbProduct.unit_price * 100) / 100;
+    // 8d. total_cost must exactly equal quantity × unit_price
+    const expectedCost = Math.round(item.quantity * item.unit_price * 100) / 100;
+    if (Math.abs(item.total_cost - expectedCost) > 0.01) {
+      throw new ValidationError(
+        `Cost mismatch for ${item.name}: AI said ${item.total_cost}, expected ${expectedCost}`
+      );
+    }
   }
 
-  // 8e. Server-side computation of allocated_budget
+  // 8e. allocated_budget must exactly equal sum(total_cost)
   const computedAllocated =
     Math.round(
       aiData.products.reduce((sum, p) => sum + p.total_cost, 0) * 100
     ) / 100;
-  aiData.allocated_budget = computedAllocated;
+
+  if (Math.abs(aiData.allocated_budget - computedAllocated) > 0.01) {
+    throw new ValidationError(
+      `Allocated budget mismatch: AI said ₹${aiData.allocated_budget}, computed ₹${computedAllocated}`
+    );
+  }
 
   // 8f. total_budget_limit from AI must equal request budget_limit
   if (aiData.total_budget_limit !== budget_limit) {

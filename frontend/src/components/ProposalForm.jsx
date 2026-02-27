@@ -126,9 +126,9 @@ export default function ProposalForm({ onSubmit, loading }) {
 const styles = {
   form: {
     background: "#fff",
-    borderRadius: 12,
+    borderRadius: "var(--radius, 12px)",
     padding: 32,
-    boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+    boxShadow: "var(--card-shadow, 0 2px 12px rgba(31,122,92,0.08))",
     maxWidth: 520,
     width: "100%",
   },
@@ -136,7 +136,7 @@ const styles = {
     margin: "0 0 24px",
     fontSize: 22,
     fontWeight: 700,
-    color: "#1a1a2e",
+    color: "var(--brand-primary, #1F7A5C)",
   },
   field: {
     marginBottom: 20,
@@ -146,12 +146,12 @@ const styles = {
     marginBottom: 6,
     fontWeight: 600,
     fontSize: 14,
-    color: "#333",
+    color: "var(--text-dark, #1A1A1A)",
   },
   input: {
     width: "100%",
     padding: "10px 14px",
-    border: "1px solid #d1d5db",
+    border: "1px solid var(--border-light, #E0E8E4)",
     borderRadius: 8,
     fontSize: 15,
     boxSizing: "border-box",
@@ -161,7 +161,7 @@ const styles = {
   select: {
     width: "100%",
     padding: "10px 14px",
-    border: "1px solid #d1d5db",
+    border: "1px solid var(--border-light, #E0E8E4)",
     borderRadius: 8,
     fontSize: 15,
     boxSizing: "border-box",
@@ -182,7 +182,7 @@ const styles = {
   button: {
     width: "100%",
     padding: "12px 0",
-    background: "linear-gradient(135deg, #2ecc71, #27ae60)",
+    background: "var(--brand-accent, #2BB673)",
     color: "#fff",
     border: "none",
     borderRadius: 8,

@@ -16,8 +16,10 @@ export async function generateProposal({
   const res = await axios.post(`${API_BASE}/generate`, {
     client_name,
     budget_limit: Number(budget_limit),
-    category_focus,
-    sustainability_priority,
+    preferences: {
+      category_focus,
+      sustainability_priority,
+    },
   });
   return res.data;
 }

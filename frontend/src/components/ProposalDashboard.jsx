@@ -9,9 +9,9 @@ import {
 } from "recharts";
 
 const COLORS = [
-  "#2ecc71", "#3498db", "#e74c3c", "#f39c12",
+  "#1F7A5C", "#2BB673", "#3498db", "#f39c12",
   "#9b59b6", "#1abc9c", "#e67e22", "#2c3e50",
-  "#d35400", "#16a085", "#8e44ad", "#c0392b",
+  "#d35400", "#16a085", "#8e44ad", "#27ae60",
 ];
 
 export default function ProposalDashboard({ data }) {
@@ -65,7 +65,7 @@ export default function ProposalDashboard({ data }) {
                   ? "#e74c3c"
                   : budgetPercent > 70
                   ? "#f39c12"
-                  : "#2ecc71",
+                  : "var(--brand-accent, #2BB673)",
             }}
           />
         </div>
@@ -127,13 +127,13 @@ export default function ProposalDashboard({ data }) {
 
       {/* Impact Cards */}
       <div style={styles.impactRow}>
-        <div style={{ ...styles.impactCard, borderTop: "4px solid #2ecc71" }}>
+        <div style={{ ...styles.impactCard, borderTop: "4px solid var(--brand-accent, #2BB673)" }}>
           <p style={styles.impactLabel}>Total Plastic Saved</p>
           <p style={styles.impactValue}>
             {computed_impact.total_plastic_saved.toFixed(2)} kg
           </p>
         </div>
-        <div style={{ ...styles.impactCard, borderTop: "4px solid #3498db" }}>
+        <div style={{ ...styles.impactCard, borderTop: "4px solid var(--brand-primary, #1F7A5C)" }}>
           <p style={styles.impactLabel}>Total Carbon Avoided</p>
           <p style={styles.impactValue}>
             {computed_impact.total_carbon_avoided.toFixed(2)} kg CO₂
@@ -160,15 +160,15 @@ const styles = {
   },
   card: {
     background: "#fff",
-    borderRadius: 12,
+    borderRadius: "var(--radius, 12px)",
     padding: 24,
-    boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+    boxShadow: "var(--card-shadow, 0 2px 12px rgba(31,122,92,0.08))",
   },
   cardTitle: {
     margin: "0 0 12px",
     fontSize: 18,
     fontWeight: 700,
-    color: "#1a1a2e",
+    color: "var(--brand-primary, #1F7A5C)",
   },
   text: {
     fontSize: 15,
@@ -193,7 +193,7 @@ const styles = {
   progressTrack: {
     width: "100%",
     height: 14,
-    background: "#ecf0f1",
+    background: "var(--border-light, #E0E8E4)",
     borderRadius: 7,
     overflow: "hidden",
   },
@@ -240,9 +240,9 @@ const styles = {
     flex: 1,
     minWidth: 200,
     background: "#fff",
-    borderRadius: 12,
+    borderRadius: "var(--radius, 12px)",
     padding: 24,
-    boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+    boxShadow: "var(--card-shadow, 0 2px 12px rgba(31,122,92,0.08))",
     textAlign: "center",
   },
   impactLabel: {
@@ -254,7 +254,7 @@ const styles = {
   impactValue: {
     fontSize: 28,
     fontWeight: 700,
-    color: "#1a1a2e",
+    color: "var(--brand-primary, #1F7A5C)",
     margin: 0,
   },
 };

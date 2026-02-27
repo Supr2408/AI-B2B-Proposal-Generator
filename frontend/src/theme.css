@@ -1,0 +1,33 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Rayeva Brand Theme — AI B2B Proposal Generator
+   Clean white background + green accent tones
+   ═══════════════════════════════════════════════════════════════════ */
+
+:root {
+  --brand-primary: #1F7A5C;
+  --brand-accent: #2BB673;
+  --brand-light: #F5F9F7;
+  --text-dark: #1A1A1A;
+  --text-secondary: #555;
+  --border-light: #E0E8E4;
+  --card-shadow: 0 2px 12px rgba(31, 122, 92, 0.08);
+  --radius: 12px;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', sans-serif;
+  background: var(--brand-light);
+  color: var(--text-dark);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

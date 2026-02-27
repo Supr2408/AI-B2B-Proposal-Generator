@@ -1,6 +1,8 @@
 const { z } = require("zod");
 
 // ─── Incoming API request schema ─────────────────────────────────────
+// Input contract: preferences is a nested object containing
+// category_focus and sustainability_priority.
 const ProposalRequestSchema = z.object({
   client_name: z.string().optional().default(""),
   budget_limit: z
@@ -10,8 +12,13 @@ const ProposalRequestSchema = z.object({
     })
     .positive("budget_limit must be a positive number")
     .finite("budget_limit must be finite"),
-  category_focus: z.array(z.string()).optional().default([]),
-  sustainability_priority: z.string().optional().default(""),
+  preferences: z
+    .object({
+      category_focus: z.array(z.string()).optional().default([]),
+      sustainability_priority: z.string().optional().default(""),
+    })
+    .optional()
+    .default({}),
 });
 
 // ─── Strict AI output schema (no extra keys allowed) ─────────────────

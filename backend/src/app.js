@@ -39,13 +39,21 @@ async function bootstrap() {
 
   // ── 404 ─────────────────────────────────────────────────────────
   app.use((_req, res) => {
-    res.status(404).json({ ok: false, error: "Endpoint not found" });
+    res.status(404).json({
+      ok: false,
+      data: null,
+      error: { message: "Endpoint not found", code: "NOT_FOUND" },
+    });
   });
 
   // ── Global error handler ────────────────────────────────────────
   app.use((err, _req, res, _next) => {
     console.error("[Server] Unhandled error:", err);
-    res.status(500).json({ ok: false, error: "Internal server error" });
+    res.status(500).json({
+      ok: false,
+      data: null,
+      error: { message: "Internal server error", code: "INTERNAL_ERROR" },
+    });
   });
 
   // ── Start ───────────────────────────────────────────────────────
