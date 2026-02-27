@@ -7,6 +7,9 @@ export default defineConfig({
   base: process.env.GITHUB_PAGES === 'true'
     ? '/AI-B2B-Proposal-Generator/'
     : '/',
+  build: {
+    chunkSizeWarningLimit: 1000,
+  },
   server: {
     port: 5173,
     proxy: {
