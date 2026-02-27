@@ -205,29 +205,31 @@ function parseAndValidate(rawContent, productMap, budget_limit) {
       );
     }
 
-    // 8d. total_cost must exactly equal quantity × unit_price
+    // 8d. total_cost: server computes the correct value from verified
+    //     quantity × unit_price. LLMs (especially small models) often
+    //     get multiplication wrong. Since unit_price is DB-verified,
+    //     we auto-correct rather than reject.
     const expectedCost = Math.round(item.quantity * item.unit_price * 100) / 100;
-    if (Math.abs(item.total_cost - expectedCost) > 0.01) {
-      throw new ValidationError(
-        `Cost mismatch for ${item.name}: AI said ${item.total_cost}, expected ${expectedCost}`
+    if (item.total_cost !== expectedCost) {
+      console.warn(
+        `[Service] Auto-correcting total_cost for ${item.name}: AI said ${item.total_cost}, correct is ${expectedCost}`
       );
+      item.total_cost = expectedCost;
     }
   }
 
-  // 8e. allocated_budget must closely match sum(total_cost)
-  // Tolerance: ₹1 per product — LLMs can multiply but often miscount sums.
-  // Individual total_cost values are already verified exact (step 8d),
-  // so the server always uses its own computed sum for the final response.
+  // 8e. allocated_budget: server always uses its own computed sum.
+  // Individual total_cost values are already corrected (step 8d).
   const computedAllocated =
     Math.round(
       aiData.products.reduce((sum, p) => sum + p.total_cost, 0) * 100
     ) / 100;
-  const allocatedTolerance = Math.max(1, aiData.products.length);
 
-  if (Math.abs(aiData.allocated_budget - computedAllocated) > allocatedTolerance) {
-    throw new ValidationError(
-      `Allocated budget mismatch: AI said ₹${aiData.allocated_budget}, computed ₹${computedAllocated}`
+  if (aiData.allocated_budget !== computedAllocated) {
+    console.warn(
+      `[Service] Auto-correcting allocated_budget: AI said ₹${aiData.allocated_budget}, correct is ₹${computedAllocated}`
     );
+    aiData.allocated_budget = computedAllocated;
   }
 
   // 8f. total_budget_limit from AI must equal request budget_limit

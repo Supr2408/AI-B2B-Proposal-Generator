@@ -197,7 +197,7 @@ describe("Strict JSON parse behavior", () => {
 
 describe("Business validation logic", () => {
   // Simulate the validation logic inline (same as proposalService steps 8a-9)
-  // Strict fail-fast: NO mutation of AI output.
+  // Server auto-corrects arithmetic from AI (LLMs can't multiply reliably).
   function validateAIOutput(aiData, productMap, budgetLimit) {
     for (const item of aiData.products) {
       const dbProduct = productMap.get(item.product_id);
@@ -214,24 +214,15 @@ describe("Business validation logic", () => {
           `Price mismatch for ${item.name}: AI said ${item.unit_price}, DB has ${dbProduct.unit_price}`
         );
       }
-      // 8d. total_cost must exactly equal quantity × unit_price
+      // 8d. Auto-correct total_cost = quantity × unit_price
       const expectedCost = Math.round(item.quantity * item.unit_price * 100) / 100;
-      if (Math.abs(item.total_cost - expectedCost) > 0.01) {
-        throw new ValidationError(
-          `Cost mismatch for ${item.name}: AI said ${item.total_cost}, expected ${expectedCost}`
-        );
-      }
+      item.total_cost = expectedCost;
     }
-    // 8e. allocated_budget must closely match sum(total_cost)
+    // 8e. Auto-correct allocated_budget = sum of total_cost
     const computedAllocated = Math.round(
       aiData.products.reduce((sum, p) => sum + p.total_cost, 0) * 100
     ) / 100;
-    const allocatedTolerance = Math.max(1, aiData.products.length);
-    if (Math.abs(aiData.allocated_budget - computedAllocated) > allocatedTolerance) {
-      throw new ValidationError(
-        `Allocated budget mismatch: AI said ₹${aiData.allocated_budget}, computed ₹${computedAllocated}`
-      );
-    }
+    aiData.allocated_budget = computedAllocated;
 
     if (aiData.total_budget_limit !== budgetLimit) {
       throw new ValidationError(
@@ -263,7 +254,7 @@ describe("Business validation logic", () => {
     assert.equal(result.finalAllocated, 13980);
   });
 
-  it("rejects total_cost mismatch (wrong arithmetic)", () => {
+  it("auto-corrects total_cost mismatch (wrong arithmetic)", () => {
     const aiData = {
       total_budget_limit: 50000,
       allocated_budget: 14000,
@@ -271,13 +262,13 @@ describe("Business validation logic", () => {
         { product_id: "prod1", name: "Recycled Cotton Tote Bag", quantity: 20, unit_price: 699, total_cost: 14000 },
       ],
     };
-    assert.throws(
-      () => validateAIOutput(aiData, mockProductMap, 50000),
-      (e) => e instanceof ValidationError && /Cost mismatch/.test(e.message)
-    );
+    const result = validateAIOutput(aiData, mockProductMap, 50000);
+    // Server corrects total_cost to 20 × 699 = 13980
+    assert.equal(aiData.products[0].total_cost, 13980);
+    assert.equal(result.finalAllocated, 13980);
   });
 
-  it("rejects allocated_budget mismatch", () => {
+  it("auto-corrects allocated_budget mismatch", () => {
     const aiData = {
       total_budget_limit: 50000,
       allocated_budget: 99999,
@@ -285,10 +276,10 @@ describe("Business validation logic", () => {
         { product_id: "prod1", name: "Recycled Cotton Tote Bag", quantity: 20, unit_price: 699, total_cost: 13980 },
       ],
     };
-    assert.throws(
-      () => validateAIOutput(aiData, mockProductMap, 50000),
-      (e) => e instanceof ValidationError && /Allocated budget mismatch/.test(e.message)
-    );
+    const result = validateAIOutput(aiData, mockProductMap, 50000);
+    // Server corrects allocated_budget to sum of total_costs
+    assert.equal(aiData.allocated_budget, 13980);
+    assert.equal(result.finalAllocated, 13980);
   });
 
   it("rejects unknown product_id", () => {
