@@ -36,8 +36,8 @@ const config = Object.freeze({
     nodeEnv: optionalEnv("NODE_ENV", "development"),
   },
   retry: {
-    maxRetries: Number(optionalEnv("AI_MAX_RETRIES", "3")),
-    retryDelayMs: Number(optionalEnv("AI_RETRY_DELAY_MS", "1000")),
+    maxRetries: Number(optionalEnv("AI_MAX_RETRIES", "5")),
+    retryDelayMs: Number(optionalEnv("AI_RETRY_DELAY_MS", "2000")),
   },
   module: {
     name: optionalEnv("MODULE_NAME", "B2BProposal"),
