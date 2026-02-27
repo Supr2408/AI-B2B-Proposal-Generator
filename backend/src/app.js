@@ -34,6 +34,7 @@ async function bootstrap() {
         version: config.module.version,
         status: "running",
       },
+      error: null,
     });
   });
 
@@ -42,7 +43,7 @@ async function bootstrap() {
     res.status(404).json({
       ok: false,
       data: null,
-      error: { message: "Endpoint not found", code: "NOT_FOUND" },
+      error: "Endpoint not found",
     });
   });
 
@@ -52,7 +53,7 @@ async function bootstrap() {
     res.status(500).json({
       ok: false,
       data: null,
-      error: { message: "Internal server error", code: "INTERNAL_ERROR" },
+      error: "Internal server error",
     });
   });
 

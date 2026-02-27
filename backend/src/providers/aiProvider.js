@@ -163,4 +163,5 @@ module.exports = {
   callAI,
   buildSystemPrompt,
   buildUserPrompt,
+  isRetryable, // exported for unit testing
 };

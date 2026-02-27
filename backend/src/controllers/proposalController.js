@@ -24,10 +24,7 @@ async function generate(req, res) {
       return res.status(400).json({
         ok: false,
         data: null,
-        error: {
-          message: `Validation failed: ${issues}`,
-          code: "INVALID_REQUEST",
-        },
+        error: `Validation failed: ${issues}`,
       });
     }
 
@@ -38,6 +35,7 @@ async function generate(req, res) {
     return res.status(200).json({
       ok: true,
       data: result,
+      error: null,
     });
   } catch (err) {
     console.error("[Controller] Error:", err.message);
@@ -48,10 +46,7 @@ async function generate(req, res) {
       return res.status(422).json({
         ok: false,
         data: null,
-        error: {
-          message: err.message,
-          code: "VALIDATION_ERROR",
-        },
+        error: err.message,
       });
     }
 
@@ -59,10 +54,7 @@ async function generate(req, res) {
     return res.status(500).json({
       ok: false,
       data: null,
-      error: {
-        message: err.message,
-        code: "INTERNAL_ERROR",
-      },
+      error: err.message,
     });
   }
 }
@@ -74,6 +66,7 @@ async function health(_req, res) {
       status: "healthy",
       module: "B2BProposal v1.0.0",
     },
+    error: null,
   });
 }
 

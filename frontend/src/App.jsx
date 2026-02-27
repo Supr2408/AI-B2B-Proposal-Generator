@@ -17,14 +17,11 @@ export default function App() {
       if (res.ok) {
         setProposal(res.data);
       } else {
-        // error is now { message, code }
-        const msg = res.error?.message || res.error || "Unknown error from server";
-        setError(msg);
+        setError(res.error || "Unknown error from server");
       }
     } catch (err) {
       const serverErr = err.response?.data?.error;
-      const msg = serverErr?.message || serverErr || err.message || "Network error";
-      setError(msg);
+      setError(serverErr || err.message || "Network error");
     } finally {
       setLoading(false);
     }

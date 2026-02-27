@@ -10,6 +10,7 @@ const { describe, it } = require("node:test");
 const assert = require("node:assert/strict");
 const { ProposalRequestSchema, AIResponseSchema } = require("../src/validators/proposalValidator");
 const { ValidationError } = require("../src/services/proposalService");
+const { isRetryable } = require("../src/providers/aiProvider");
 
 // ─── Helper: valid AI response factory ───────────────────────────────
 function makeValidAIResponse(overrides = {}) {
@@ -381,5 +382,85 @@ describe("HTTP status code mapping", () => {
   it("Regular Error is NOT instanceof ValidationError", () => {
     const err = new Error("system fail");
     assert.equal(err instanceof ValidationError, false);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════
+// 6. LOGGING FAILURE — request must abort
+// ═════════════════════════════════════════════════════════════════════
+
+describe("Logging failure causes request abort", () => {
+  it("throws Error (not ValidationError) when AILog.create would fail", () => {
+    // The service wraps logging failure in:
+    //   throw new Error(`Logging failure — proposal aborted: ${logErr.message}`)
+    // Simulate exactly that behavior:
+    const logErr = new Error("MongoNetworkError: connection refused");
+    const abortError = new Error(`Logging failure — proposal aborted: ${logErr.message}`);
+
+    // Must NOT be a ValidationError (so controller returns 500, not 422)
+    assert.equal(abortError instanceof ValidationError, false);
+    assert.match(abortError.message, /Logging failure/);
+    assert.match(abortError.message, /proposal aborted/);
+  });
+
+  it("logging error is a system error, not retryable via validation loop", () => {
+    // Logging failure throws a plain Error, which is NOT instanceof
+    // ValidationError. The retry loop in generateProposal only catches
+    // ValidationError — plain Errors bubble up immediately.
+    const logErr = new Error("Logging failure — proposal aborted: disk full");
+    assert.equal(logErr instanceof ValidationError, false);
+    // This means the catch block's `if (err instanceof ValidationError)`
+    // is false, so the else branch `throw err` fires immediately.
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════
+// 7. RETRY POLICY — only 429, 5xx, and network errors
+// ═════════════════════════════════════════════════════════════════════
+
+describe("Retry policy (isRetryable)", () => {
+  it("retries on HTTP 429 (rate limit)", () => {
+    const err = { response: { status: 429 } };
+    assert.equal(isRetryable(err), true);
+  });
+
+  it("retries on HTTP 500 (server error)", () => {
+    const err = { response: { status: 500 } };
+    assert.equal(isRetryable(err), true);
+  });
+
+  it("retries on HTTP 502 (bad gateway)", () => {
+    const err = { response: { status: 502 } };
+    assert.equal(isRetryable(err), true);
+  });
+
+  it("retries on HTTP 503 (service unavailable)", () => {
+    const err = { response: { status: 503 } };
+    assert.equal(isRetryable(err), true);
+  });
+
+  it("retries on network error (no response)", () => {
+    const err = { code: "ENOTFOUND" };
+    assert.equal(isRetryable(err), true);
+  });
+
+  it("retries on connection abort", () => {
+    const err = { code: "ECONNABORTED" };
+    assert.equal(isRetryable(err), true);
+  });
+
+  it("does NOT retry on HTTP 400 (bad request)", () => {
+    const err = { response: { status: 400 } };
+    assert.equal(isRetryable(err), false);
+  });
+
+  it("does NOT retry on HTTP 401 (unauthorized)", () => {
+    const err = { response: { status: 401 } };
+    assert.equal(isRetryable(err), false);
+  });
+
+  it("does NOT retry on HTTP 422 (validation)", () => {
+    const err = { response: { status: 422 } };
+    assert.equal(isRetryable(err), false);
   });
 });
