@@ -10,7 +10,7 @@ const { describe, it } = require("node:test");
 const assert = require("node:assert/strict");
 const { ProposalRequestSchema, AIResponseSchema } = require("../src/validators/proposalValidator");
 const { ValidationError } = require("../src/services/proposalService");
-const { isRetryable } = require("../src/providers/aiProvider");
+const { isRetryable, parseRetryAfterMs } = require("../src/providers/aiProvider");
 
 // ─── Helper: valid AI response factory ───────────────────────────────
 function makeValidAIResponse(overrides = {}) {
@@ -454,5 +454,38 @@ describe("Retry policy (isRetryable)", () => {
   it("does NOT retry on HTTP 422 (validation)", () => {
     const err = { response: { status: 422 } };
     assert.equal(isRetryable(err), false);
+  });
+});
+
+describe("Rate limit delay parsing", () => {
+  it("parses Retry-After header seconds", () => {
+    const err = {
+      response: {
+        headers: { "retry-after": "19" },
+      },
+    };
+    assert.equal(parseRetryAfterMs(err), 19000);
+  });
+
+  it("parses 'try again in Xs' message", () => {
+    const err = {
+      response: {
+        data: {
+          error: {
+            message: "Please try again in 18.36s.",
+          },
+        },
+      },
+    };
+    assert.equal(parseRetryAfterMs(err), 18360);
+  });
+
+  it("returns null when no retry hint is present", () => {
+    const err = {
+      response: {
+        data: { error: { message: "Some other error" } },
+      },
+    };
+    assert.equal(parseRetryAfterMs(err), null);
   });
 });

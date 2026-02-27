@@ -68,7 +68,7 @@ async function generateProposal({ client_name, budget_limit, preferences }) {
   // The AI output is NEVER mutated — only accepted or rejected.
   // On retry, the previous validation error is appended to the user
   // prompt so the AI can learn from its mistake.
-  const MAX_VALIDATION_RETRIES = 5;
+  const MAX_VALIDATION_RETRIES = config.validation.maxAiValidationRetries;
   let lastValidationError = null;
   let currentUserPrompt = userPrompt;
 

@@ -29,6 +29,7 @@ const config = Object.freeze({
     groq: {
       apiKey: optionalEnv("GROQ_API_KEY", ""),
       model: optionalEnv("GROQ_MODEL", "llama-3.3-70b-versatile"),
+      maxOutputTokens: Number(optionalEnv("GROQ_MAX_OUTPUT_TOKENS", "512")),
     },
   },
   server: {
@@ -36,8 +37,12 @@ const config = Object.freeze({
     nodeEnv: optionalEnv("NODE_ENV", "development"),
   },
   retry: {
-    maxRetries: Number(optionalEnv("AI_MAX_RETRIES", "5")),
+    maxRetries: Number(optionalEnv("AI_MAX_RETRIES", "3")),
     retryDelayMs: Number(optionalEnv("AI_RETRY_DELAY_MS", "2000")),
+    rateLimitMinDelayMs: Number(optionalEnv("AI_RATE_LIMIT_MIN_DELAY_MS", "8000")),
+  },
+  validation: {
+    maxAiValidationRetries: Number(optionalEnv("AI_VALIDATION_MAX_RETRIES", "3")),
   },
   module: {
     name: optionalEnv("MODULE_NAME", "B2BProposal"),

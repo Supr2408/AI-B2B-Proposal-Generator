@@ -21,7 +21,13 @@ export default function App() {
       }
     } catch (err) {
       const serverErr = err.response?.data?.error;
-      setError(serverErr || err.message || "Network error");
+      const retryAfterMs = err.response?.data?.data?.retry_after_ms;
+      if (err.response?.status === 429 && retryAfterMs) {
+        const retrySeconds = Math.ceil(retryAfterMs / 1000);
+        setError(`${serverErr || "Rate limit reached"}. Please retry in ${retrySeconds}s.`);
+      } else {
+        setError(serverErr || err.message || "Network error");
+      }
     } finally {
       setLoading(false);
     }
