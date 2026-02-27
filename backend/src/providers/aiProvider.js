@@ -130,7 +130,12 @@ ${budgetGuide}
 
 WARNING: The sum of ALL selected products' total_cost MUST be ≤ ₹${budgetLimit}.
 If you pick multiple products, each product's total_cost eats into this shared budget.
-Pick conservatively — it is better to underspend than to exceed the budget.
+
+BUDGET UTILIZATION GOAL:
+- You MUST select at least 3 different products (from different categories if possible).
+- Aim to use at least 70% of the budget (₹${Math.floor(budgetLimit * 0.7)} or more).
+- Select a MIX of products with varying quantities to maximize sustainability impact.
+- It is better to slightly underspend than to exceed the budget, but do NOT waste budget by picking only 1 item.
 
 NON-NEGOTIABLE RULES:
 1) Use ONLY product_id values from the provided catalog.
