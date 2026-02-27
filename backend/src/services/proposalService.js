@@ -43,6 +43,12 @@ async function generateProposal({ client_name, budget_limit, category_focus, sus
   }
   console.log(`[Service] Loaded ${allProducts.length} products from DB`);
 
+  // Build product lookup map: _id string → product doc
+  const productMap = new Map();
+  for (const p of allProducts) {
+    productMap.set(p._id.toString(), p);
+  }
+
   // ── 2. Build system prompt ─────────────────────────────────────
   const systemPrompt = buildSystemPrompt(allProducts);
 
@@ -54,37 +60,103 @@ async function generateProposal({ client_name, budget_limit, category_focus, sus
     client_name
   );
 
-  // ── 4. Call AI provider ────────────────────────────────────────
-  console.log("[Service] Calling AI provider...");
-  const { rawContent, model } = await callAI(systemPrompt, userPrompt);
-  console.log(`[Service] AI response received (${rawContent.length} chars)`);
+  // ── 4–9. AI call + validation loop ─────────────────────────────
+  // If the AI produces invalid output (bad JSON, schema violation,
+  // math error, budget overshoot), retry up to MAX_VALIDATION_RETRIES.
+  // The AI output is NEVER mutated — only accepted or rejected.
+  const MAX_VALIDATION_RETRIES = 3;
+  let lastValidationError = null;
 
-  // ── 5. LOG BEFORE parse, BEFORE validation ─────────────────────
-  // Logging MUST be awaited. If logging fails → proposal fails.
-  try {
-    await AILog.create({
-      system_prompt: systemPrompt,
-      user_prompt: userPrompt,
-      raw_response: rawContent,
-      module: config.module.name,
-      module_version: config.module.version,
-    });
-    console.log("[Service] AI interaction logged");
-  } catch (logErr) {
-    throw new Error(`Logging failure — proposal aborted: ${logErr.message}`);
+  for (let attempt = 1; attempt <= MAX_VALIDATION_RETRIES; attempt++) {
+    // ── 4. Call AI provider ──────────────────────────────────────
+    console.log(`[Service] AI attempt ${attempt}/${MAX_VALIDATION_RETRIES}...`);
+    const { rawContent, model } = await callAI(systemPrompt, userPrompt);
+    console.log(`[Service] AI response received (${rawContent.length} chars)`);
+
+    // ── 5. LOG BEFORE parse, BEFORE validation ───────────────────
+    try {
+      await AILog.create({
+        system_prompt: systemPrompt,
+        user_prompt: userPrompt,
+        raw_response: rawContent,
+        module: config.module.name,
+        module_version: config.module.version,
+      });
+      console.log("[Service] AI interaction logged");
+    } catch (logErr) {
+      throw new Error(`Logging failure — proposal aborted: ${logErr.message}`);
+    }
+
+    // ── 6–9. Parse, validate, and verify ─────────────────────────
+    try {
+      const aiData = parseAndValidate(rawContent, productMap, budget_limit);
+
+      // ── All checks passed — proceed to persist and return ──────
+      const finalAllocated = Math.round(
+        aiData.products.reduce((sum, p) => sum + p.total_cost, 0) * 100
+      ) / 100;
+      const remainingBudget = Math.round((budget_limit - finalAllocated) * 100) / 100;
+
+      // ── 10. Compute impact server-side (NOT from AI) ───────────
+      const computedImpact = await computeImpact(aiData.products);
+      console.log("[Service] Impact computed server-side:", computedImpact);
+
+      // ── 11. Persist proposal ───────────────────────────────────
+      const proposal = await Proposal.create({
+        client_name: client_name || "",
+        proposal_summary: aiData.proposal_summary,
+        total_budget_limit: budget_limit,
+        allocated_budget: finalAllocated,
+        remaining_budget: remainingBudget,
+        products: aiData.products,
+        impact_summary: aiData.impact_summary,
+        confidence_score: aiData.confidence_score,
+        computed_impact: computedImpact,
+        ai_metadata: {
+          system_prompt: systemPrompt,
+          user_prompt: userPrompt,
+          raw_response: rawContent,
+          model,
+        },
+      });
+      console.log("[Service] Proposal persisted:", proposal._id);
+
+      // ── 12. Return structured response ─────────────────────────
+      return {
+        proposal_id: proposal._id.toString(),
+        proposal_summary: aiData.proposal_summary,
+        total_budget_limit: budget_limit,
+        allocated_budget: finalAllocated,
+        remaining_budget: remainingBudget,
+        products: aiData.products,
+        impact_summary: aiData.impact_summary,
+        confidence_score: aiData.confidence_score,
+        computed_impact: computedImpact,
+      };
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        lastValidationError = err;
+        console.warn(`[Service] Validation failed (attempt ${attempt}): ${err.message}`);
+        if (attempt < MAX_VALIDATION_RETRIES) continue;
+      } else {
+        throw err; // Non-validation errors (system/provider) bubble up immediately
+      }
+    }
   }
 
-  // ── 6. Strict JSON.parse — strip markdown fences if AI wraps them ──
-  let jsonText = rawContent;
-  // Strip ```json ... ``` wrapping that LLMs sometimes add despite instructions
-  const fenceMatch = jsonText.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?\s*```$/);
-  if (fenceMatch) {
-    jsonText = fenceMatch[1];
-  }
+  // All retries exhausted — throw the last validation error as 422
+  throw lastValidationError;
+}
 
+// ─── Parse & Validate (Steps 6–9) ───────────────────────────────────
+// Extracted to keep the retry loop clean. This function NEVER mutates
+// the AI response — it either returns the validated data or throws.
+
+function parseAndValidate(rawContent, productMap, budget_limit) {
+  // ── 6. Strict JSON.parse — single call, no fallback ────────────
   let parsed;
   try {
-    parsed = JSON.parse(jsonText);
+    parsed = JSON.parse(rawContent);
   } catch (parseErr) {
     throw new ValidationError(`AI response is not valid JSON: ${parseErr.message}`);
   }
@@ -100,12 +172,6 @@ async function generateProposal({ client_name, budget_limit, category_focus, sus
   const aiData = zodResult.data;
 
   // ── 8. Business validation ─────────────────────────────────────
-  // Build lookup map: _id string → product doc
-  const productMap = new Map();
-  for (const p of allProducts) {
-    productMap.set(p._id.toString(), p);
-  }
-
   for (const item of aiData.products) {
     // 8a. Product must exist in DB
     const dbProduct = productMap.get(item.product_id);
@@ -120,69 +186,41 @@ async function generateProposal({ client_name, budget_limit, category_focus, sus
       );
     }
 
-    // 8c. unit_price must exactly match DB (never auto-correct)
+    // 8c. unit_price must exactly match DB
     if (item.unit_price !== dbProduct.unit_price) {
       throw new ValidationError(
         `Price mismatch for ${item.name}: AI said ${item.unit_price}, DB has ${dbProduct.unit_price}`
       );
     }
 
-    // 8d. Recompute total_cost server-side (spec: "Recompute total_cost server-side")
-    item.total_cost = Math.round(item.quantity * item.unit_price * 100) / 100;
+    // 8d. Server-side computation of total_cost (LLMs cannot do arithmetic reliably)
+    //     Same pattern as server-side impact computation — the server is the
+    //     source of truth for all derived numeric fields.
+    item.total_cost = Math.round(item.quantity * dbProduct.unit_price * 100) / 100;
   }
 
-  // 8e. Recompute allocated_budget server-side
+  // 8e. Server-side computation of allocated_budget
   const computedAllocated =
     Math.round(
       aiData.products.reduce((sum, p) => sum + p.total_cost, 0) * 100
     ) / 100;
+  aiData.allocated_budget = computedAllocated;
 
-  // ── 9. Budget enforcement ──────────────────────────────────────
+  // 8f. total_budget_limit from AI must equal request budget_limit
+  if (aiData.total_budget_limit !== budget_limit) {
+    throw new ValidationError(
+      `Budget limit mismatch: AI said ₹${aiData.total_budget_limit}, request had ₹${budget_limit}`
+    );
+  }
+
+  // ── 9. Budget enforcement — reject if over budget ──────────────
   if (computedAllocated > budget_limit) {
     throw new ValidationError(
       `Budget exceeded: allocated ₹${computedAllocated} exceeds limit ₹${budget_limit}`
     );
   }
 
-  const finalAllocated = computedAllocated;
-  const remainingBudget = Math.round((budget_limit - finalAllocated) * 100) / 100;
-
-  // ── 10. Compute impact server-side (NOT from AI) ───────────────
-  const computedImpact = await computeImpact(aiData.products);
-  console.log("[Service] Impact computed server-side:", computedImpact);
-
-  // ── 11. Persist proposal ───────────────────────────────────────
-  const proposal = await Proposal.create({
-    client_name: client_name || "",
-    proposal_summary: aiData.proposal_summary,
-    total_budget_limit: budget_limit,
-    allocated_budget: finalAllocated,
-    remaining_budget: remainingBudget,
-    products: aiData.products,
-    impact_summary: aiData.impact_summary,
-    confidence_score: aiData.confidence_score,
-    computed_impact: computedImpact,
-    ai_metadata: {
-      system_prompt: systemPrompt,
-      user_prompt: userPrompt,
-      raw_response: rawContent,
-      model,
-    },
-  });
-  console.log("[Service] Proposal persisted:", proposal._id);
-
-  // ── 12. Return structured response ─────────────────────────────
-  return {
-    proposal_id: proposal._id.toString(),
-    proposal_summary: aiData.proposal_summary,
-    total_budget_limit: budget_limit,
-    allocated_budget: finalAllocated,
-    remaining_budget: remainingBudget,
-    products: aiData.products,
-    impact_summary: aiData.impact_summary,
-    confidence_score: aiData.confidence_score,
-    computed_impact: computedImpact,
-  };
+  return aiData;
 }
 
 module.exports = { generateProposal, ValidationError };

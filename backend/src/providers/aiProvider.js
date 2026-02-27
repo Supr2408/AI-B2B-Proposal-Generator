@@ -32,7 +32,7 @@ async function callGroq(systemPrompt, userPrompt) {
             { role: "user", content: userPrompt },
           ],
           max_tokens: 2048,
-          temperature: 0.3,
+          temperature: 0.1,
         },
         {
           headers: {
@@ -98,13 +98,21 @@ NON-NEGOTIABLE RULES:
 1) Use ONLY product_id values from the provided catalog.
 2) Do NOT invent products, IDs, prices, or categories.
 3) For every selected product:
-   - name must exactly match catalog
-   - unit_price must exactly match catalog
-   - total_cost must equal quantity * unit_price
-4) allocated_budget must equal sum(total_cost).
+   - name must EXACTLY match catalog (character-for-character)
+   - unit_price must EXACTLY match catalog (do NOT change it)
+   - total_cost = quantity × unit_price (EXACT multiplication, NO rounding, NO additions, NO tax)
+   Example: if unit_price=538 and quantity=5, then total_cost=2690 (NOT 2696, NOT 2700)
+   Example: if unit_price=999 and quantity=10, then total_cost=9990 (NOT 9996, NOT 10000)
+4) allocated_budget = sum of ALL total_cost values (add each total_cost exactly).
 5) allocated_budget must be <= total_budget_limit.
 6) confidence_score must be between 0 and 1.
 7) Return EXACTLY one JSON object with no markdown and no extra keys.
+
+CRITICAL ARITHMETIC CHECK — before outputting, verify:
+  - Every total_cost = quantity × unit_price (exact integer multiplication)
+  - allocated_budget = total_cost_1 + total_cost_2 + ... (exact sum)
+  - allocated_budget <= total_budget_limit
+If any check fails, fix the numbers BEFORE outputting.
 
 REQUIRED JSON SHAPE:
 {
