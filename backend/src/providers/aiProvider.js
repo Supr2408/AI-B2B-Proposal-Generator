@@ -32,7 +32,7 @@ async function callGroq(systemPrompt, userPrompt) {
             { role: "user", content: userPrompt },
           ],
           max_tokens: 1024,
-          temperature: 0,
+          temperature: 0.4,
         },
         {
           headers: {
@@ -110,6 +110,9 @@ RULES:
 4. allocated_budget = sum of all total_cost. Must be ≤ ${budgetLimit}.
 5. confidence_score: 0-1.
 6. Output ONLY valid JSON, no markdown.
+
+EXAMPLE OUTPUT:
+{"proposal_summary":"Sustainable gifting for Acme Corp.","total_budget_limit":9000,"allocated_budget":8450,"products":[{"product_id":"p1","name":"Plantable Seed Paper Card","quantity":10,"unit_price":199,"total_cost":1990},{"product_id":"p2","name":"Eco Bamboo Bottle","quantity":5,"unit_price":800,"total_cost":4000},{"product_id":"p3","name":"Recycled Cotton Tote","quantity":5,"unit_price":500,"total_cost":2500}],"impact_summary":"Reduces plastic and paper waste.","confidence_score":0.98}
 
 JSON SHAPE:
 {"proposal_summary":"string","total_budget_limit":${budgetLimit},"allocated_budget":0,"products":[{"product_id":"string","name":"string","quantity":1,"unit_price":0,"total_cost":0}],"impact_summary":"string","confidence_score":0}`;

@@ -1,0 +1,3 @@
+# Prevent accidental commits of local git-filter-repo replacement maps.
+.git-filter-repo-replacements.txt
+.git-filter-repo/
