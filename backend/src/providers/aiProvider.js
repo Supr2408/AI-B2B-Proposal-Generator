@@ -16,16 +16,17 @@ function isRetryable(error) {
   return false;
 }
 
-// ─── OpenAI Provider ─────────────────────────────────────────────────
-async function callOpenAI(systemPrompt, userPrompt) {
+// ─── Groq Provider ───────────────────────────────────────────────────
+// Groq uses the OpenAI-compatible chat completions API format.
+async function callGroq(systemPrompt, userPrompt) {
   const { maxRetries, retryDelayMs } = config.retry;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const res = await axios.post(
-        "https://api.openai.com/v1/chat/completions",
+        "https://api.groq.com/openai/v1/chat/completions",
         {
-          model: config.ai.openai.model,
+          model: config.ai.groq.model,
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
@@ -35,7 +36,7 @@ async function callOpenAI(systemPrompt, userPrompt) {
         },
         {
           headers: {
-            Authorization: `Bearer ${config.ai.openai.apiKey}`,
+            Authorization: `Bearer ${config.ai.groq.apiKey}`,
             "Content-Type": "application/json",
           },
           timeout: 60000,
@@ -44,85 +45,30 @@ async function callOpenAI(systemPrompt, userPrompt) {
 
       const content = res.data.choices?.[0]?.message?.content;
       if (!content) {
-        throw new Error("OpenAI returned empty content");
+        throw new Error("Groq returned empty content");
       }
       return {
         rawContent: content.trim(),
-        model: res.data.model || config.ai.openai.model,
+        model: res.data.model || config.ai.groq.model,
       };
     } catch (err) {
       if (isRetryable(err) && attempt < maxRetries) {
-        console.warn(`[OpenAI] Retry ${attempt}/${maxRetries} in ${retryDelayMs * attempt}ms`);
+        console.warn(`[Groq] Retry ${attempt}/${maxRetries} in ${retryDelayMs * attempt}ms`);
         await new Promise((r) => setTimeout(r, retryDelayMs * attempt));
         continue;
       }
       const msg = err.response?.data?.error?.message || err.message;
-      throw new Error(`OpenAI API error: ${msg}`);
+      throw new Error(`Groq API error: ${msg}`);
     }
   }
-  throw new Error(`OpenAI failed after ${maxRetries} retries`);
-}
-
-// ─── Gemini Provider ─────────────────────────────────────────────────
-async function callGemini(systemPrompt, userPrompt) {
-  const { maxRetries, retryDelayMs } = config.retry;
-  const apiKey = config.ai.gemini.apiKey;
-  const model = config.ai.gemini.model;
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      const res = await axios.post(
-        url,
-        {
-          system_instruction: {
-            parts: [{ text: systemPrompt }],
-          },
-          contents: [
-            {
-              parts: [{ text: userPrompt }],
-            },
-          ],
-          generationConfig: {
-            temperature: 0.3,
-            maxOutputTokens: 2048,
-          },
-        },
-        {
-          headers: { "Content-Type": "application/json" },
-          timeout: 60000,
-        }
-      );
-
-      const content = res.data.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!content) {
-        throw new Error("Gemini returned empty content");
-      }
-      return {
-        rawContent: content.trim(),
-        model: model,
-      };
-    } catch (err) {
-      if (isRetryable(err) && attempt < maxRetries) {
-        console.warn(`[Gemini] Retry ${attempt}/${maxRetries} in ${retryDelayMs * attempt}ms`);
-        await new Promise((r) => setTimeout(r, retryDelayMs * attempt));
-        continue;
-      }
-      const msg = err.response?.data?.error?.message || err.message;
-      throw new Error(`Gemini API error: ${msg}`);
-    }
-  }
-  throw new Error(`Gemini failed after ${maxRetries} retries`);
+  throw new Error(`Groq failed after ${maxRetries} retries`);
 }
 
 // ─── Provider Abstraction ────────────────────────────────────────────
 async function callAI(systemPrompt, userPrompt) {
   const provider = config.ai.provider;
-  if (provider === "openai") {
-    return callOpenAI(systemPrompt, userPrompt);
-  }
-  if (provider === "gemini") {
-    return callGemini(systemPrompt, userPrompt);
+  if (provider === "groq") {
+    return callGroq(systemPrompt, userPrompt);
   }
   throw new Error(`Unknown AI provider: ${provider}`);
 }
@@ -188,7 +134,7 @@ IMPORTANT: Output ONLY the JSON object. No text before or after.`;
 }
 
 function buildUserPrompt(budgetLimit, categoryFocus, sustainabilityPriority, clientName) {
-  let prompt = `Generate a B2B sustainability proposal for a budget of $${budgetLimit}.`;
+  let prompt = `Generate a B2B sustainability proposal for a budget of ₹${budgetLimit} (Indian Rupees).`;
   if (clientName) {
     prompt += `\nClient: ${clientName}`;
   }

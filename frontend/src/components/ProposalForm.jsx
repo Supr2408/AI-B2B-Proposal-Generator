@@ -60,7 +60,7 @@ export default function ProposalForm({ onSubmit, loading }) {
       {/* Budget */}
       <div style={styles.field}>
         <label style={styles.label}>
-          Budget Limit ($) <span style={{ color: "#e74c3c" }}>*</span>
+          Budget Limit (₹) <span style={{ color: "#e74c3c" }}>*</span>
         </label>
         <input
           style={styles.input}

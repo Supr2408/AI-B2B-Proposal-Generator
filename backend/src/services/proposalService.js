@@ -63,10 +63,17 @@ async function generateProposal({ client_name, budget_limit, category_focus, sus
     throw new Error(`Logging failure — proposal aborted: ${logErr.message}`);
   }
 
-  // ── 6. Strict JSON.parse — no regex, no markdown strip, no fallback ──
+  // ── 6. Strict JSON.parse — strip markdown fences if AI wraps them ──
+  let jsonText = rawContent;
+  // Strip ```json ... ``` wrapping that LLMs sometimes add despite instructions
+  const fenceMatch = jsonText.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?\s*```$/);
+  if (fenceMatch) {
+    jsonText = fenceMatch[1];
+  }
+
   let parsed;
   try {
-    parsed = JSON.parse(rawContent);
+    parsed = JSON.parse(jsonText);
   } catch (parseErr) {
     throw new Error(`AI response is not valid JSON: ${parseErr.message}`);
   }
@@ -95,42 +102,52 @@ async function generateProposal({ client_name, budget_limit, category_focus, sus
       throw new Error(`Product not found in DB: ${item.product_id}`);
     }
 
-    // 8b. unit_price must match DB
-    if (item.unit_price !== dbProduct.unit_price) {
-      throw new Error(
-        `Price mismatch for ${item.name}: AI said ${item.unit_price}, DB has ${dbProduct.unit_price}`
-      );
-    }
+    // 8b. Override unit_price with DB truth (AI may hallucinate price)
+    item.unit_price = dbProduct.unit_price;
 
-    // 8c. total_cost = quantity × unit_price (server verification)
-    const expectedCost = Math.round(item.quantity * item.unit_price * 100) / 100;
-    if (Math.abs(item.total_cost - expectedCost) > 0.01) {
-      throw new Error(
-        `Cost mismatch for ${item.name}: AI said ${item.total_cost}, expected ${expectedCost}`
-      );
-    }
+    // 8c. Recalculate total_cost server-side (never trust AI arithmetic)
+    item.total_cost = Math.round(item.quantity * item.unit_price * 100) / 100;
   }
 
-  // 8d. Verify allocated_budget = sum of all total_cost
+  // 8d. Recalculate allocated_budget from corrected totals
   const computedAllocated =
     Math.round(
       aiData.products.reduce((sum, p) => sum + p.total_cost, 0) * 100
     ) / 100;
 
-  if (Math.abs(aiData.allocated_budget - computedAllocated) > 0.01) {
-    throw new Error(
-      `Allocated budget mismatch: AI said ${aiData.allocated_budget}, computed ${computedAllocated}`
-    );
+  // ── 9. Budget enforcement — trim quantities to fit ──────────────
+  // If the server-recalculated total exceeds budget, reduce quantities
+  // from the last product backwards until it fits (never trust AI math).
+  let runningTotal = computedAllocated;
+  if (runningTotal > budget_limit) {
+    console.warn(`[Service] Budget exceeded (${runningTotal} > ${budget_limit}), trimming...`);
+    // Trim from end of product list backwards
+    for (let i = aiData.products.length - 1; i >= 0 && runningTotal > budget_limit; i--) {
+      const item = aiData.products[i];
+      while (item.quantity > 1 && runningTotal > budget_limit) {
+        runningTotal -= item.unit_price;
+        item.quantity -= 1;
+        item.total_cost = Math.round(item.quantity * item.unit_price * 100) / 100;
+      }
+      // If still over budget with quantity 1, remove product entirely
+      if (runningTotal > budget_limit) {
+        runningTotal -= item.total_cost;
+        aiData.products.splice(i, 1);
+      }
+    }
+    runningTotal = Math.round(runningTotal * 100) / 100;
+    console.log(`[Service] Trimmed to ${runningTotal}`);
   }
 
-  // ── 9. Budget enforcement ──────────────────────────────────────
-  if (computedAllocated > budget_limit) {
-    throw new Error(
-      `Budget exceeded: allocated ${computedAllocated} exceeds limit ${budget_limit}`
-    );
+  if (aiData.products.length === 0) {
+    throw new Error("Cannot fit any products within the budget");
   }
 
-  const remainingBudget = Math.round((budget_limit - computedAllocated) * 100) / 100;
+  const finalAllocated = Math.round(
+    aiData.products.reduce((sum, p) => sum + p.total_cost, 0) * 100
+  ) / 100;
+
+  const remainingBudget = Math.round((budget_limit - finalAllocated) * 100) / 100;
 
   // ── 10. Compute impact server-side (NOT from AI) ───────────────
   const computedImpact = await computeImpact(aiData.products);
@@ -141,7 +158,7 @@ async function generateProposal({ client_name, budget_limit, category_focus, sus
     client_name: client_name || "",
     proposal_summary: aiData.proposal_summary,
     total_budget_limit: budget_limit,
-    allocated_budget: computedAllocated,
+    allocated_budget: finalAllocated,
     remaining_budget: remainingBudget,
     products: aiData.products,
     impact_summary: aiData.impact_summary,
@@ -161,7 +178,7 @@ async function generateProposal({ client_name, budget_limit, category_focus, sus
     proposal_id: proposal._id.toString(),
     proposal_summary: aiData.proposal_summary,
     total_budget_limit: budget_limit,
-    allocated_budget: computedAllocated,
+    allocated_budget: finalAllocated,
     remaining_budget: remainingBudget,
     products: aiData.products,
     impact_summary: aiData.impact_summary,

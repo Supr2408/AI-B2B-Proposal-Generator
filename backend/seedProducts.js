@@ -19,7 +19,7 @@ const seedProducts = [
   {
     name: "Recycled Cotton Tote Bag",
     category: "Bags",
-    unit_price: 8.5,
+    unit_price: 699,
     impact_metrics: {
       plastic_saved_per_unit: 0.3,
       carbon_avoided_per_unit: 1.2,
@@ -28,7 +28,7 @@ const seedProducts = [
   {
     name: "Stainless Steel Water Bottle",
     category: "Drinkware",
-    unit_price: 15.0,
+    unit_price: 1249,
     impact_metrics: {
       plastic_saved_per_unit: 0.5,
       carbon_avoided_per_unit: 2.1,
@@ -37,7 +37,7 @@ const seedProducts = [
   {
     name: "Bamboo Ballpoint Pen",
     category: "Stationery",
-    unit_price: 3.25,
+    unit_price: 269,
     impact_metrics: {
       plastic_saved_per_unit: 0.05,
       carbon_avoided_per_unit: 0.15,
@@ -46,7 +46,7 @@ const seedProducts = [
   {
     name: "Recycled Paper Notebook",
     category: "Stationery",
-    unit_price: 6.0,
+    unit_price: 499,
     impact_metrics: {
       plastic_saved_per_unit: 0.1,
       carbon_avoided_per_unit: 0.8,
@@ -55,7 +55,7 @@ const seedProducts = [
   {
     name: "Ceramic Travel Mug",
     category: "Drinkware",
-    unit_price: 12.0,
+    unit_price: 999,
     impact_metrics: {
       plastic_saved_per_unit: 0.4,
       carbon_avoided_per_unit: 1.5,
@@ -64,7 +64,7 @@ const seedProducts = [
   {
     name: "Organic Cotton T-Shirt",
     category: "Apparel",
-    unit_price: 22.0,
+    unit_price: 1799,
     impact_metrics: {
       plastic_saved_per_unit: 0.2,
       carbon_avoided_per_unit: 3.5,
@@ -73,7 +73,7 @@ const seedProducts = [
   {
     name: "Recycled Polyester Cap",
     category: "Apparel",
-    unit_price: 14.0,
+    unit_price: 1149,
     impact_metrics: {
       plastic_saved_per_unit: 0.6,
       carbon_avoided_per_unit: 1.8,
@@ -82,7 +82,7 @@ const seedProducts = [
   {
     name: "Biodegradable Wheat Straw USB Drive (16GB)",
     category: "Electronics",
-    unit_price: 9.75,
+    unit_price: 799,
     impact_metrics: {
       plastic_saved_per_unit: 0.15,
       carbon_avoided_per_unit: 0.6,
@@ -91,7 +91,7 @@ const seedProducts = [
   {
     name: "Portable Solar Phone Charger",
     category: "Electronics",
-    unit_price: 35.0,
+    unit_price: 2899,
     impact_metrics: {
       plastic_saved_per_unit: 0.25,
       carbon_avoided_per_unit: 5.0,
@@ -100,7 +100,7 @@ const seedProducts = [
   {
     name: "Plantable Seed Paper Card",
     category: "Stationery",
-    unit_price: 2.5,
+    unit_price: 199,
     impact_metrics: {
       plastic_saved_per_unit: 0.02,
       carbon_avoided_per_unit: 0.1,
@@ -109,7 +109,7 @@ const seedProducts = [
   {
     name: "Bamboo Fiber Lunch Box",
     category: "Kitchen",
-    unit_price: 18.0,
+    unit_price: 1499,
     impact_metrics: {
       plastic_saved_per_unit: 0.8,
       carbon_avoided_per_unit: 2.0,
@@ -118,7 +118,7 @@ const seedProducts = [
   {
     name: "Reusable Metal Straw Set (4-pack)",
     category: "Kitchen",
-    unit_price: 7.5,
+    unit_price: 599,
     impact_metrics: {
       plastic_saved_per_unit: 1.0,
       carbon_avoided_per_unit: 0.5,
@@ -137,7 +137,7 @@ async function seed() {
   const docs = await Product.insertMany(seedProducts);
   console.log(`[Seed] Inserted ${docs.length} products:`);
   docs.forEach((d) =>
-    console.log(`  • ${d._id}  ${d.name}  ($${d.unit_price})`)
+    console.log(`  • ${d._id}  ${d.name}  (₹${d.unit_price})`)
   );
 
   await mongoose.disconnect();

@@ -51,9 +51,9 @@ export default function ProposalDashboard({ data }) {
       <div style={styles.card}>
         <h3 style={styles.cardTitle}>Budget Allocation</h3>
         <div style={styles.budgetRow}>
-          <span>Allocated: <strong>${allocated_budget.toLocaleString()}</strong></span>
-          <span>Remaining: <strong>${remaining_budget.toLocaleString()}</strong></span>
-          <span>Total: <strong>${total_budget_limit.toLocaleString()}</strong></span>
+          <span>Allocated: <strong>₹{allocated_budget.toLocaleString('en-IN')}</strong></span>
+          <span>Remaining: <strong>₹{remaining_budget.toLocaleString('en-IN')}</strong></span>
+          <span>Total: <strong>₹{total_budget_limit.toLocaleString('en-IN')}</strong></span>
         </div>
         <div style={styles.progressTrack}>
           <div
@@ -89,9 +89,9 @@ export default function ProposalDashboard({ data }) {
               {products.map((p, i) => (
                 <tr key={i} style={i % 2 === 0 ? styles.trEven : {}}>
                   <td style={styles.td}>{p.name}</td>
-                  <td style={styles.td}>${p.unit_price.toFixed(2)}</td>
+                  <td style={styles.td}>₹{p.unit_price.toLocaleString('en-IN')}</td>
                   <td style={styles.td}>{p.quantity}</td>
-                  <td style={styles.td}>${p.total_cost.toFixed(2)}</td>
+                  <td style={styles.td}>₹{p.total_cost.toLocaleString('en-IN')}</td>
                 </tr>
               ))}
             </tbody>
@@ -119,7 +119,7 @@ export default function ProposalDashboard({ data }) {
                 <Cell key={i} fill={COLORS[i % COLORS.length]} />
               ))}
             </Pie>
-            <Tooltip formatter={(v) => `$${v.toFixed(2)}`} />
+            <Tooltip formatter={(v) => `₹${v.toLocaleString('en-IN')}`} />
             <Legend />
           </PieChart>
         </ResponsiveContainer>

@@ -1,7 +1,7 @@
 const dotenv = require("dotenv");
 const path = require("path");
 
-dotenv.config({ path: path.resolve(__dirname, "../.env") });
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
 function requireEnv(key) {
   const value = process.env[key];
@@ -20,14 +20,10 @@ const config = Object.freeze({
     uri: requireEnv("MONGODB_URI"),
   },
   ai: {
-    provider: optionalEnv("AI_PROVIDER", "gemini"),
-    openai: {
-      apiKey: optionalEnv("OPENAI_API_KEY", ""),
-      model: optionalEnv("OPENAI_MODEL", "gpt-4o"),
-    },
-    gemini: {
-      apiKey: optionalEnv("GEMINI_API_KEY", ""),
-      model: optionalEnv("GEMINI_MODEL", "gemini-2.0-flash"),
+    provider: optionalEnv("AI_PROVIDER", "groq"),
+    groq: {
+      apiKey: optionalEnv("GROQ_API_KEY", ""),
+      model: optionalEnv("GROQ_MODEL", "llama-3.3-70b-versatile"),
     },
   },
   server: {
