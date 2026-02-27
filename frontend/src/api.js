@@ -1,6 +1,9 @@
 import axios from "axios";
 
-const API_BASE = "/api/v1/proposals";
+// In production (GitHub Pages), use the deployed Render backend URL.
+// In development, Vite proxy forwards /api → localhost:5000.
+const BACKEND_URL = import.meta.env.VITE_API_URL || "";
+const API_BASE = `${BACKEND_URL}/api/v1/proposals`;
 
 /**
  * API service for the B2B Proposal Generator frontend.

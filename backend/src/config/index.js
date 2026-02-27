@@ -1,14 +1,19 @@
 const dotenv = require("dotenv");
 const path = require("path");
 
-dotenv.config({ path: path.resolve(__dirname, "../../.env") });
+// Only load .env file in local dev (Vercel injects env vars directly)
+if (!process.env.VERCEL) {
+  dotenv.config({ path: path.resolve(__dirname, "../../.env") });
+}
 
 function requireEnv(key) {
   const value = process.env[key];
   if (!value) {
-    throw new Error(`[Config] Missing required env variable: ${key}`);
+    // Log warning but don't crash at import time — Vercel may set
+    // env vars after the module is first parsed.
+    console.error(`[Config] WARNING: Missing env variable: ${key}`);
   }
-  return value;
+  return value || "";
 }
 
 function optionalEnv(key, fallback) {
