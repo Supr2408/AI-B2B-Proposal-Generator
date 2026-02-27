@@ -7,6 +7,17 @@ const { AIResponseSchema } = require("../validators/proposalValidator");
 const { computeImpact } = require("./impactService");
 
 /**
+ * ValidationError — thrown for AI output validation and business rule violations.
+ * The controller maps this to HTTP 422 (vs 500 for provider/system errors).
+ */
+class ValidationError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "ValidationError";
+  }
+}
+
+/**
  * ProposalService — Use Case Orchestrator
  *
  * Pipeline:
@@ -75,7 +86,7 @@ async function generateProposal({ client_name, budget_limit, category_focus, sus
   try {
     parsed = JSON.parse(jsonText);
   } catch (parseErr) {
-    throw new Error(`AI response is not valid JSON: ${parseErr.message}`);
+    throw new ValidationError(`AI response is not valid JSON: ${parseErr.message}`);
   }
 
   // ── 7. Zod schema validation (strict — no extra keys) ─────────
@@ -84,7 +95,7 @@ async function generateProposal({ client_name, budget_limit, category_focus, sus
     const issues = zodResult.error.issues
       .map((i) => `${i.path.join(".")}: ${i.message}`)
       .join("; ");
-    throw new Error(`AI response schema violation: ${issues}`);
+    throw new ValidationError(`AI response schema violation: ${issues}`);
   }
   const aiData = zodResult.data;
 
@@ -99,54 +110,41 @@ async function generateProposal({ client_name, budget_limit, category_focus, sus
     // 8a. Product must exist in DB
     const dbProduct = productMap.get(item.product_id);
     if (!dbProduct) {
-      throw new Error(`Product not found in DB: ${item.product_id}`);
+      throw new ValidationError(`Product not found in DB: ${item.product_id}`);
     }
 
-    // 8b. Override unit_price with DB truth (AI may hallucinate price)
-    item.unit_price = dbProduct.unit_price;
+    // 8b. Name must exactly match DB
+    if (item.name !== dbProduct.name) {
+      throw new ValidationError(
+        `Name mismatch for ${item.product_id}: AI said "${item.name}", DB has "${dbProduct.name}"`
+      );
+    }
 
-    // 8c. Recalculate total_cost server-side (never trust AI arithmetic)
+    // 8c. unit_price must exactly match DB (never auto-correct)
+    if (item.unit_price !== dbProduct.unit_price) {
+      throw new ValidationError(
+        `Price mismatch for ${item.name}: AI said ${item.unit_price}, DB has ${dbProduct.unit_price}`
+      );
+    }
+
+    // 8d. Recompute total_cost server-side (spec: "Recompute total_cost server-side")
     item.total_cost = Math.round(item.quantity * item.unit_price * 100) / 100;
   }
 
-  // 8d. Recalculate allocated_budget from corrected totals
+  // 8e. Recompute allocated_budget server-side
   const computedAllocated =
     Math.round(
       aiData.products.reduce((sum, p) => sum + p.total_cost, 0) * 100
     ) / 100;
 
-  // ── 9. Budget enforcement — trim quantities to fit ──────────────
-  // If the server-recalculated total exceeds budget, reduce quantities
-  // from the last product backwards until it fits (never trust AI math).
-  let runningTotal = computedAllocated;
-  if (runningTotal > budget_limit) {
-    console.warn(`[Service] Budget exceeded (${runningTotal} > ${budget_limit}), trimming...`);
-    // Trim from end of product list backwards
-    for (let i = aiData.products.length - 1; i >= 0 && runningTotal > budget_limit; i--) {
-      const item = aiData.products[i];
-      while (item.quantity > 1 && runningTotal > budget_limit) {
-        runningTotal -= item.unit_price;
-        item.quantity -= 1;
-        item.total_cost = Math.round(item.quantity * item.unit_price * 100) / 100;
-      }
-      // If still over budget with quantity 1, remove product entirely
-      if (runningTotal > budget_limit) {
-        runningTotal -= item.total_cost;
-        aiData.products.splice(i, 1);
-      }
-    }
-    runningTotal = Math.round(runningTotal * 100) / 100;
-    console.log(`[Service] Trimmed to ${runningTotal}`);
+  // ── 9. Budget enforcement ──────────────────────────────────────
+  if (computedAllocated > budget_limit) {
+    throw new ValidationError(
+      `Budget exceeded: allocated ₹${computedAllocated} exceeds limit ₹${budget_limit}`
+    );
   }
 
-  if (aiData.products.length === 0) {
-    throw new Error("Cannot fit any products within the budget");
-  }
-
-  const finalAllocated = Math.round(
-    aiData.products.reduce((sum, p) => sum + p.total_cost, 0) * 100
-  ) / 100;
-
+  const finalAllocated = computedAllocated;
   const remainingBudget = Math.round((budget_limit - finalAllocated) * 100) / 100;
 
   // ── 10. Compute impact server-side (NOT from AI) ───────────────
@@ -187,4 +185,4 @@ async function generateProposal({ client_name, budget_limit, category_focus, sus
   };
 }
 
-module.exports = { generateProposal };
+module.exports = { generateProposal, ValidationError };

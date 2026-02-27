@@ -84,68 +84,71 @@ function buildSystemPrompt(products) {
     impact_metrics: p.impact_metrics,
   }));
 
-  return `You are an AI B2B sustainability proposal strategist.
+  return `You are an AI B2B sustainability proposal strategist for a sustainable commerce platform.
 
-You will be given a budget, optional category focus areas, and an optional sustainability priority.
-Your task is to recommend a product mix from the EXACT product catalog below.
+Your task:
+Generate a product proposal from the provided catalog that maximizes sustainability impact while staying within budget.
 
 ═══════════════════════════════════════════
 PRODUCT CATALOG (select ONLY from these):
 ═══════════════════════════════════════════
 ${JSON.stringify(catalog, null, 2)}
 
-═══════════════════════════════════════════
-STRICT RULES:
-═══════════════════════════════════════════
-1. ONLY use product_id values from the catalog above.
-2. Do NOT invent any product_id.
-3. The "name" field must exactly match the catalog name for that product_id.
-4. The "unit_price" must exactly match the catalog unit_price.
-5. total_cost = quantity × unit_price (you must compute this correctly for each product).
-6. allocated_budget = sum of all total_cost values.
-7. allocated_budget MUST NOT exceed the budget_limit provided.
-8. total_budget_limit must equal the budget_limit provided.
-9. confidence_score is a number between 0 and 1.
-10. Consider sustainability impact and category preferences when selecting products.
+NON-NEGOTIABLE RULES:
+1) Use ONLY product_id values from the provided catalog.
+2) Do NOT invent products, IDs, prices, or categories.
+3) For every selected product:
+   - name must exactly match catalog
+   - unit_price must exactly match catalog
+   - total_cost must equal quantity * unit_price
+4) allocated_budget must equal sum(total_cost).
+5) allocated_budget must be <= total_budget_limit.
+6) confidence_score must be between 0 and 1.
+7) Return EXACTLY one JSON object with no markdown and no extra keys.
 
-═══════════════════════════════════════════
-REQUIRED OUTPUT FORMAT (strict JSON only):
-═══════════════════════════════════════════
-Return EXACTLY this JSON. No markdown. No explanation. No extra keys. Single JSON object only:
-
+REQUIRED JSON SHAPE:
 {
-  "proposal_summary": "<executive summary>",
-  "total_budget_limit": <number>,
-  "allocated_budget": <number>,
+  "proposal_summary": "string",
+  "total_budget_limit": 0,
+  "allocated_budget": 0,
   "products": [
     {
-      "product_id": "<exact product_id from catalog>",
-      "name": "<exact product name from catalog>",
-      "quantity": <positive integer>,
-      "unit_price": <exact unit_price from catalog>,
-      "total_cost": <quantity * unit_price>
+      "product_id": "string",
+      "name": "string",
+      "quantity": 1,
+      "unit_price": 0,
+      "total_cost": 0
     }
   ],
-  "impact_summary": "<sustainability impact positioning>",
-  "confidence_score": <0.0 to 1.0>
+  "impact_summary": "string",
+  "confidence_score": 0
 }
+
+STYLE GUIDANCE:
+- Keep proposal_summary and impact_summary concise, executive, and measurable.
+- Emphasize practical business value: brand credibility, reduced waste footprint, procurement suitability.
+- Avoid inflated or unverified impact claims.
 
 IMPORTANT: Output ONLY the JSON object. No text before or after.`;
 }
 
 function buildUserPrompt(budgetLimit, categoryFocus, sustainabilityPriority, clientName) {
-  let prompt = `Generate a B2B sustainability proposal for a budget of ₹${budgetLimit} (Indian Rupees).`;
-  if (clientName) {
-    prompt += `\nClient: ${clientName}`;
-  }
-  if (categoryFocus && categoryFocus.length > 0) {
-    prompt += `\nCategory focus: ${categoryFocus.join(", ")}`;
-  }
-  if (sustainabilityPriority) {
-    prompt += `\nSustainability priority: ${sustainabilityPriority}`;
-  }
-  prompt += `\n\nReturn ONLY valid JSON matching the required schema. No markdown, no explanation.`;
-  return prompt;
+  const client = clientName || "N/A";
+  const categories =
+    categoryFocus && categoryFocus.length > 0
+      ? categoryFocus.join(", ")
+      : "N/A";
+  const priority = sustainabilityPriority || "N/A";
+
+  return `Generate a B2B sustainability proposal.
+
+Budget limit (INR): ₹${budgetLimit}
+Client name: ${client}
+Category focus: ${categories}
+Sustainability priority: ${priority}
+
+Return only strict JSON in the required schema.
+No markdown, no explanation, no extra keys.`;
 }
 
 module.exports = {
