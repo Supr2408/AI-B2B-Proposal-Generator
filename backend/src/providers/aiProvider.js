@@ -53,8 +53,25 @@ async function callGroq(systemPrompt, userPrompt) {
       };
     } catch (err) {
       if (isRetryable(err) && attempt < maxRetries) {
-        console.warn(`[Groq] Retry ${attempt}/${maxRetries} in ${retryDelayMs * attempt}ms`);
-        await new Promise((r) => setTimeout(r, retryDelayMs * attempt));
+        // For 429 (rate limit), parse the retry-after time from the response
+        let delayMs = retryDelayMs * attempt;
+        if (err.response?.status === 429) {
+          const retryAfterHeader = err.response.headers?.["retry-after"];
+          const errMsg = err.response?.data?.error?.message || "";
+          // Try header first, then parse "try again in X.XXs" from error message
+          if (retryAfterHeader) {
+            delayMs = Math.ceil(parseFloat(retryAfterHeader) * 1000) + 500;
+          } else {
+            const match = errMsg.match(/try again in\s+([\d.]+)s/i);
+            if (match) {
+              delayMs = Math.ceil(parseFloat(match[1]) * 1000) + 500;
+            } else {
+              delayMs = Math.max(delayMs, 8000); // fallback: 8s for rate limits
+            }
+          }
+        }
+        console.warn(`[Groq] Retry ${attempt}/${maxRetries} in ${delayMs}ms`);
+        await new Promise((r) => setTimeout(r, delayMs));
         continue;
       }
       const msg = err.response?.data?.error?.message || err.message;
