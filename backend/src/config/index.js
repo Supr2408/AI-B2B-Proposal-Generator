@@ -29,7 +29,8 @@ const config = Object.freeze({
     groq: {
       apiKey: optionalEnv("GROQ_API_KEY", ""),
       model: optionalEnv("GROQ_MODEL", "llama-3.3-70b-versatile"),
-      maxOutputTokens: Number(optionalEnv("GROQ_MAX_OUTPUT_TOKENS", "512")),
+      maxOutputTokens: Number(optionalEnv("GROQ_MAX_OUTPUT_TOKENS", "320")),
+      maxCatalogItems: Number(optionalEnv("GROQ_MAX_CATALOG_ITEMS", "8")),
     },
   },
   server: {

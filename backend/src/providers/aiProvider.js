@@ -158,9 +158,45 @@ async function callAI(systemPrompt, userPrompt) {
   throw new Error(`Unknown AI provider: ${provider}`);
 }
 
+function selectCatalogProducts(products, budgetLimit, maxItems) {
+  const affordable = products.filter((p) => p.unit_price <= budgetLimit);
+  const pool = affordable.length > 0 ? affordable : products;
+  const byPrice = [...pool].sort((a, b) => a.unit_price - b.unit_price);
+
+  const selected = [];
+  const selectedIds = new Set();
+  const seenCategories = new Set();
+
+  // First pass: keep category diversity while preferring cheaper products.
+  for (const p of byPrice) {
+    if (selected.length >= maxItems) break;
+    if (seenCategories.has(p.category)) continue;
+    selected.push(p);
+    selectedIds.add(String(p._id));
+    seenCategories.add(p.category);
+  }
+
+  // Second pass: fill remaining slots by cheapest items.
+  for (const p of byPrice) {
+    if (selected.length >= maxItems) break;
+    const id = String(p._id);
+    if (selectedIds.has(id)) continue;
+    selected.push(p);
+    selectedIds.add(id);
+  }
+
+  return selected;
+}
+
 function buildSystemPrompt(products, budgetLimit) {
+  const catalogProducts = selectCatalogProducts(
+    products,
+    budgetLimit,
+    config.ai.groq.maxCatalogItems
+  );
+
   // Compact catalog: one line per product to minimize tokens
-  const catalogLines = products
+  const catalogLines = catalogProducts
     .map(
       (p) =>
         `${p._id}|${p.name}|${p.category}|${p.unit_price}|max${Math.floor(
@@ -182,6 +218,7 @@ Rules:
 5) allocated_budget = sum(total_cost), and must be <= ${budgetLimit}.
 6) confidence_score must be between 0 and 1.
 7) Output valid JSON only, no markdown, no extra keys.
+8) Choose products only from the catalog lines provided.
 
 Required JSON schema:
 {"proposal_summary":"string","total_budget_limit":${budgetLimit},"allocated_budget":0,"products":[{"product_id":"string","name":"string","quantity":1,"unit_price":0,"total_cost":0}],"impact_summary":"string","confidence_score":0}`;

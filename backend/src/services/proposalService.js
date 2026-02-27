@@ -145,9 +145,10 @@ async function generateProposal({ client_name, budget_limit, preferences }) {
         // Inject error feedback into the next retry prompt so the AI
         // knows exactly what went wrong and can correct itself.
         if (attempt < MAX_VALIDATION_RETRIES) {
-          currentUserPrompt = userPrompt +
-            `\n\n⚠️ YOUR PREVIOUS RESPONSE WAS REJECTED. ERROR: "${err.message}"` +
-            `\nFix this issue. The budget limit is ₹${budget_limit} — your allocated_budget MUST be ≤ ₹${budget_limit}. Use fewer products or smaller quantities.`;
+          const compactError = String(err.message || "validation failed").slice(0, 180);
+          currentUserPrompt =
+            `${userPrompt}\nPrevious output was invalid: "${compactError}".` +
+            ` Return corrected JSON only. allocated_budget must be <= ${budget_limit}.`;
           continue;
         }
       } else {
@@ -250,3 +251,4 @@ function parseAndValidate(rawContent, productMap, budget_limit) {
 }
 
 module.exports = { generateProposal, ValidationError };
+
