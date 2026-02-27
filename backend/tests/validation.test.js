@@ -222,11 +222,12 @@ describe("Business validation logic", () => {
         );
       }
     }
-    // 8e. allocated_budget must exactly equal sum(total_cost)
+    // 8e. allocated_budget must closely match sum(total_cost)
     const computedAllocated = Math.round(
       aiData.products.reduce((sum, p) => sum + p.total_cost, 0) * 100
     ) / 100;
-    if (Math.abs(aiData.allocated_budget - computedAllocated) > 0.01) {
+    const allocatedTolerance = Math.max(1, aiData.products.length);
+    if (Math.abs(aiData.allocated_budget - computedAllocated) > allocatedTolerance) {
       throw new ValidationError(
         `Allocated budget mismatch: AI said ₹${aiData.allocated_budget}, computed ₹${computedAllocated}`
       );

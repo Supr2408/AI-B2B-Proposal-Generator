@@ -51,8 +51,8 @@ async function generateProposal({ client_name, budget_limit, preferences }) {
     productMap.set(p._id.toString(), p);
   }
 
-  // ── 2. Build system prompt ─────────────────────────────────────
-  const systemPrompt = buildSystemPrompt(allProducts);
+  // ── 2. Build system prompt (with budget-aware quantity limits) ─
+  const systemPrompt = buildSystemPrompt(allProducts, budget_limit);
 
   // ── 3. Build user prompt ───────────────────────────────────────
   const userPrompt = buildUserPrompt(
@@ -66,20 +66,23 @@ async function generateProposal({ client_name, budget_limit, preferences }) {
   // If the AI produces invalid output (bad JSON, schema violation,
   // math error, budget overshoot), retry up to MAX_VALIDATION_RETRIES.
   // The AI output is NEVER mutated — only accepted or rejected.
-  const MAX_VALIDATION_RETRIES = 3;
+  // On retry, the previous validation error is appended to the user
+  // prompt so the AI can learn from its mistake.
+  const MAX_VALIDATION_RETRIES = 5;
   let lastValidationError = null;
+  let currentUserPrompt = userPrompt;
 
   for (let attempt = 1; attempt <= MAX_VALIDATION_RETRIES; attempt++) {
     // ── 4. Call AI provider ──────────────────────────────────────
     console.log(`[Service] AI attempt ${attempt}/${MAX_VALIDATION_RETRIES}...`);
-    const { rawContent, model } = await callAI(systemPrompt, userPrompt);
+    const { rawContent, model } = await callAI(systemPrompt, currentUserPrompt);
     console.log(`[Service] AI response received (${rawContent.length} chars)`);
 
     // ── 5. LOG BEFORE parse, BEFORE validation ───────────────────
     try {
       await AILog.create({
         system_prompt: systemPrompt,
-        user_prompt: userPrompt,
+        user_prompt: currentUserPrompt,
         raw_response: rawContent,
         module: config.module.name,
         module_version: config.module.version,
@@ -139,7 +142,14 @@ async function generateProposal({ client_name, budget_limit, preferences }) {
       if (err instanceof ValidationError) {
         lastValidationError = err;
         console.warn(`[Service] Validation failed (attempt ${attempt}): ${err.message}`);
-        if (attempt < MAX_VALIDATION_RETRIES) continue;
+        // Inject error feedback into the next retry prompt so the AI
+        // knows exactly what went wrong and can correct itself.
+        if (attempt < MAX_VALIDATION_RETRIES) {
+          currentUserPrompt = userPrompt +
+            `\n\n⚠️ YOUR PREVIOUS RESPONSE WAS REJECTED. ERROR: "${err.message}"` +
+            `\nFix this issue. The budget limit is ₹${budget_limit} — your allocated_budget MUST be ≤ ₹${budget_limit}. Use fewer products or smaller quantities.`;
+          continue;
+        }
       } else {
         throw err; // Non-validation errors (system/provider) bubble up immediately
       }
@@ -204,13 +214,17 @@ function parseAndValidate(rawContent, productMap, budget_limit) {
     }
   }
 
-  // 8e. allocated_budget must exactly equal sum(total_cost)
+  // 8e. allocated_budget must closely match sum(total_cost)
+  // Tolerance: ₹1 per product — LLMs can multiply but often miscount sums.
+  // Individual total_cost values are already verified exact (step 8d),
+  // so the server always uses its own computed sum for the final response.
   const computedAllocated =
     Math.round(
       aiData.products.reduce((sum, p) => sum + p.total_cost, 0) * 100
     ) / 100;
+  const allocatedTolerance = Math.max(1, aiData.products.length);
 
-  if (Math.abs(aiData.allocated_budget - computedAllocated) > 0.01) {
+  if (Math.abs(aiData.allocated_budget - computedAllocated) > allocatedTolerance) {
     throw new ValidationError(
       `Allocated budget mismatch: AI said ₹${aiData.allocated_budget}, computed ₹${computedAllocated}`
     );

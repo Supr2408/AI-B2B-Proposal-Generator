@@ -32,7 +32,7 @@ async function callGroq(systemPrompt, userPrompt) {
             { role: "user", content: userPrompt },
           ],
           max_tokens: 2048,
-          temperature: 0.1,
+          temperature: 0,
         },
         {
           headers: {
@@ -75,7 +75,7 @@ async function callAI(systemPrompt, userPrompt) {
 
 // ─── Prompt Builders ─────────────────────────────────────────────────
 
-function buildSystemPrompt(products) {
+function buildSystemPrompt(products, budgetLimit) {
   const catalog = products.map((p) => ({
     product_id: p._id.toString(),
     name: p.name,
@@ -84,15 +84,36 @@ function buildSystemPrompt(products) {
     impact_metrics: p.impact_metrics,
   }));
 
+  // Pre-compute max affordable quantity per product so the AI has
+  // concrete guardrails and doesn't need to do division itself.
+  const budgetGuide = products
+    .filter((p) => p.unit_price <= budgetLimit)
+    .sort((a, b) => a.unit_price - b.unit_price)
+    .map((p) => {
+      const maxQty = Math.floor(budgetLimit / p.unit_price);
+      return `  - ${p.name} (₹${p.unit_price}): max ${maxQty} units = ₹${maxQty * p.unit_price}`;
+    })
+    .join("\n");
+
   return `You are an AI B2B sustainability proposal strategist for a sustainable commerce platform.
 
 Your task:
-Generate a product proposal from the provided catalog that maximizes sustainability impact while staying within budget.
+Generate a product proposal from the provided catalog that maximizes sustainability impact while staying STRICTLY within the budget limit of ₹${budgetLimit}.
 
 ═══════════════════════════════════════════
 PRODUCT CATALOG (select ONLY from these):
 ═══════════════════════════════════════════
 ${JSON.stringify(catalog, null, 2)}
+
+═══════════════════════════════════════════
+BUDGET GUIDE — max affordable per product:
+═══════════════════════════════════════════
+Budget: ₹${budgetLimit}
+${budgetGuide}
+
+WARNING: The sum of ALL selected products' total_cost MUST be ≤ ₹${budgetLimit}.
+If you pick multiple products, each product's total_cost eats into this shared budget.
+Pick conservatively — it is better to underspend than to exceed the budget.
 
 NON-NEGOTIABLE RULES:
 1) Use ONLY product_id values from the provided catalog.
@@ -104,20 +125,20 @@ NON-NEGOTIABLE RULES:
    Example: if unit_price=538 and quantity=5, then total_cost=2690 (NOT 2696, NOT 2700)
    Example: if unit_price=999 and quantity=10, then total_cost=9990 (NOT 9996, NOT 10000)
 4) allocated_budget = sum of ALL total_cost values (add each total_cost exactly).
-5) allocated_budget must be <= total_budget_limit.
+5) allocated_budget MUST be <= ${budgetLimit}. NEVER exceed this.
 6) confidence_score must be between 0 and 1.
 7) Return EXACTLY one JSON object with no markdown and no extra keys.
 
 CRITICAL ARITHMETIC CHECK — before outputting, verify:
   - Every total_cost = quantity × unit_price (exact integer multiplication)
   - allocated_budget = total_cost_1 + total_cost_2 + ... (exact sum)
-  - allocated_budget <= total_budget_limit
+  - allocated_budget <= ${budgetLimit}
 If any check fails, fix the numbers BEFORE outputting.
 
 REQUIRED JSON SHAPE:
 {
   "proposal_summary": "string",
-  "total_budget_limit": 0,
+  "total_budget_limit": ${budgetLimit},
   "allocated_budget": 0,
   "products": [
     {
@@ -154,6 +175,8 @@ Budget limit (INR): ₹${budgetLimit}
 Client name: ${client}
 Category focus: ${categories}
 Sustainability priority: ${priority}
+
+CRITICAL: The total allocated_budget MUST be ≤ ₹${budgetLimit}. Do NOT exceed this limit under any circumstance. If necessary, reduce quantities or select fewer products to stay within budget.
 
 Return only strict JSON in the required schema.
 No markdown, no explanation, no extra keys.`;
